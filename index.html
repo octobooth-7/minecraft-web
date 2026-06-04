@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Minecraft Web</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; background: #87ceeb; font-family: monospace; color: #fff; }
+  #app { position: fixed; inset: 0; }
+  #hud {
+    position: fixed; inset: 0; pointer-events: none; display: flex;
+    align-items: center; justify-content: center;
+  }
+  #crosshair {
+    width: 18px; height: 18px; position: relative;
+  }
+  #crosshair::before, #crosshair::after {
+    content: ''; position: absolute; background: #fff;
+    box-shadow: 0 0 2px #000;
+  }
+  #crosshair::before { left: 50%; top: 0; width: 2px; height: 100%; transform: translateX(-50%); }
+  #crosshair::after  { top: 50%; left: 0; height: 2px; width: 100%; transform: translateY(-50%); }
+  #info {
+    position: fixed; left: 8px; top: 8px; font-size: 12px;
+    background: rgba(0,0,0,.4); padding: 6px 10px; border-radius: 4px;
+    line-height: 1.5;
+  }
+  #blockbar {
+    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+    display: flex; gap: 4px; padding: 4px; background: rgba(0,0,0,.4);
+    border-radius: 6px; pointer-events: none;
+  }
+  #hearts {
+    position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%);
+    pointer-events: none;
+  }
+  #hearts-canvas { image-rendering: pixelated; }
+  #hearts.hidden { display: none; }
+  .slot {
+    width: 44px; height: 44px; border: 2px solid #555;
+    position: relative;
+    background: rgba(0,0,0,.35); image-rendering: pixelated;
+    box-sizing: border-box;
+  }
+  .slot canvas {
+    width: 100%; height: 100%; image-rendering: pixelated; display: block;
+  }
+  .slot .count {
+    position: absolute; right: 2px; bottom: 0; font-size: 14px;
+    color: #fff; text-shadow: 2px 2px 0 #000, 1px 1px 0 #000;
+    font-family: monospace; font-weight: bold; pointer-events: none;
+  }
+  .slot.active { border-color: #fff; box-shadow: 0 0 0 2px rgba(255,255,255,0.3); }
+  .slot.hover { background: rgba(255,255,255,0.15); }
+
+  /* Full inventory window */
+  #inventory-screen {
+    position: fixed; inset: 0; display: none; align-items: center;
+    justify-content: center; background: rgba(0,0,0,0.55); z-index: 10;
+  }
+  #inventory-screen.open { display: flex; }
+  #inventory-window {
+    background: rgba(40,40,40,0.96); border: 3px solid #1a1a1a;
+    padding: 16px; border-radius: 4px; color: #ddd;
+    box-shadow: 0 0 0 2px #555 inset;
+  }
+  #inventory-window h2 {
+    margin: 0 0 8px; font-size: 14px; letter-spacing: 1px;
+    text-transform: uppercase; color: #fff;
+  }
+  .inv-grid {
+    display: grid; grid-template-columns: repeat(9, 44px);
+    gap: 2px; margin-bottom: 12px;
+  }
+  .inv-grid.hot { margin-top: 8px; }
+  #drag-ghost {
+    position: fixed; width: 44px; height: 44px; pointer-events: none;
+    z-index: 20; display: none; image-rendering: pixelated;
+  }
+  #drag-ghost canvas { width: 100%; height: 100%; }
+  #drag-ghost .count {
+    position: absolute; right: 2px; bottom: 0; font-size: 14px;
+    color: #fff; text-shadow: 2px 2px 0 #000;
+    font-family: monospace; font-weight: bold;
+  }
+  #tooltip {
+    position: fixed; background: rgba(20,20,20,0.95); color: #fff;
+    border: 1px solid #555; padding: 4px 8px; font-size: 12px;
+    pointer-events: none; z-index: 30; display: none;
+  }
+  #overlay {
+    position: fixed; inset: 0; display: flex; align-items: center;
+    justify-content: center; background: rgba(0,0,0,.55);
+    color: #fff; font-size: 18px; text-align: center; cursor: pointer;
+  }
+  #overlay.hidden { display: none; }
+  #overlay h1 { font-size: 28px; margin: 0 0 12px; }
+  kbd {
+    background: #222; padding: 1px 6px; border-radius: 3px;
+    border: 1px solid #555; font-family: monospace;
+  }
+
+  /* Multiplayer panel */
+  #mp-panel {
+    position: fixed; right: 8px; top: 8px; font-size: 12px;
+    background: rgba(0,0,0,.55); padding: 8px 10px; border-radius: 4px;
+    line-height: 1.5; min-width: 180px; max-width: 260px;
+    z-index: 50;
+  }
+  #mp-panel button {
+    font-family: monospace; font-size: 12px;
+    background: #2e6db8; color: #fff; border: 1px solid #1a4a8a;
+    padding: 3px 8px; cursor: pointer; border-radius: 3px; margin-right: 4px;
+  }
+  #mp-panel button:hover { background: #4080cc; }
+  #mp-status { color: #aaa; }
+  #mp-status.host, #mp-status.joined { color: #6dd06d; }
+  #mp-status.connecting { color: #ffd060; }
+  #mp-status.error { color: #ff6060; }
+  #mp-url {
+    word-break: break-all; font-size: 10px; color: #cde;
+    background: rgba(255,255,255,0.08); padding: 4px; border-radius: 3px;
+    margin: 4px 0; cursor: pointer;
+  }
+  #mp-qr { background: #fff; padding: 6px; display: inline-block; margin-top: 4px; }
+  #mp-qr img, #mp-qr canvas { display: block; }
+  .mp-hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="hud"><div id="crosshair"></div></div>
+<div id="info">
+  Mode: <span id="mode">Survival</span> (<kbd>G</kbd> toggle)<br/>
+  Time: <span id="time">--</span><br/>
+  Light: <span id="light">--</span><br/>
+  Seed: <span id="seed">--</span><br/>
+  FPS: <span id="fps">0</span><br/>
+  Pos: <span id="pos">0,0,0</span><br/>
+  Chunks: <span id="chunks">0</span>
+</div>
+<div id="mp-panel">
+  <strong>Multiplayer</strong>: <span id="mp-status">offline</span><br/>
+  <span id="mp-peers"></span>
+  <div id="mp-actions">
+    <button id="mp-host-btn">Host</button>
+    <button id="mp-join-btn">Join…</button>
+  </div>
+  <div id="mp-room" class="mp-hidden">
+    Share this link:
+    <div id="mp-url" title="Click to copy"></div>
+    <div id="mp-qr"></div>
+  </div>
+</div>
+<div id="hearts"><canvas id="hearts-canvas" width="216" height="20"></canvas></div>
+<div id="blockbar"></div>
+<div id="inventory-screen">
+  <div id="inventory-window">
+    <h2>Inventory</h2>
+    <div class="inv-grid" id="inv-main"></div>
+    <div class="inv-grid hot" id="inv-hot"></div>
+  </div>
+</div>
+<div id="drag-ghost"></div>
+<div id="tooltip"></div>
+<div id="overlay">
+  <div>
+    <h1>Minecraft Web</h1>
+    <p>Click to play</p>
+    <p style="font-size:14px;line-height:1.7;">
+      <kbd>WASD</kbd> move &nbsp; <kbd>Space</kbd> jump &nbsp; <kbd>Shift</kbd> sprint<br/>
+      <kbd>Left click</kbd> break &nbsp; <kbd>Right click</kbd> place<br/>
+      <kbd>1-9</kbd> select slot &nbsp; <kbd>Wheel</kbd> cycle &nbsp; <kbd>E</kbd> inventory &nbsp; <kbd>Esc</kbd> release mouse<br/>
+      <kbd>F</kbd> toggle fly &nbsp; <kbd>G</kbd> toggle gamemode &nbsp; <kbd>R</kbd> reload world &nbsp; <kbd>N</kbd> new seed
+    </p>
+  </div>
+</div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module" src="./main.js"></script>
+</body>
+</html>
