@@ -27,30 +27,69 @@ function shortId() {
   return 'mc-' + s;
 }
 
-// Simple boxy avatar for remote players. Vaguely Steve-shaped, distinct color.
-function buildAvatar(color) {
+// Classic Steve avatar — Minecraft proportions, fixed palette.
+// Player capsule is 1.75 tall, ~0.6 wide. Built around the player's feet (y=0).
+function buildAvatar() {
   const group = new THREE.Group();
-  const reg = (mat) => mat;
-  const skin = reg(new THREE.MeshBasicMaterial({ color }));
-  const dark = reg(new THREE.MeshBasicMaterial({ color: 0x1a1a1a }));
-  const shirt = reg(new THREE.MeshBasicMaterial({ color: 0x2e6db8 }));
-  const pants = reg(new THREE.MeshBasicMaterial({ color: 0x222244 }));
-  const cube = (w, h, d, mat, x, y, z) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(x, y, z);
-    group.add(m);
-    return m;
+  const mat = (color) => new THREE.MeshBasicMaterial({ color });
+
+  const SKIN  = mat(0xf9c69b);
+  const HAIR  = mat(0x2a1a0a);
+  const SHIRT = mat(0x00afaf);
+  const PANTS = mat(0x3a3a8c);
+  const SHOES = mat(0x4a3320);
+  const EYE_W = mat(0xffffff);
+  const EYE_P = mat(0x4d6ba8);
+  const MOUTH = mat(0x7a4a3a);
+
+  const box = (w, h, d, m, x, y, z, parent) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+    mesh.position.set(x, y, z);
+    (parent || group).add(mesh);
+    return mesh;
   };
-  // Body parts (player capsule occupies y in [0..1.75], legs ~0.0..0.85)
-  cube(0.55, 0.85, 0.30, pants, 0, 0.425, 0);   // legs
-  cube(0.60, 0.55, 0.30, shirt, 0, 1.10, 0);    // torso
-  cube(0.55, 0.55, 0.55, skin,  0, 1.65, 0);    // head
-  // Eyes
-  cube(0.10, 0.08, 0.02, dark,  0.12, 1.70, 0.28);
-  cube(0.10, 0.08, 0.02, dark, -0.12, 1.70, 0.28);
-  // Arms
-  cube(0.18, 0.55, 0.18, shirt,  0.39, 1.10, 0);
-  cube(0.18, 0.55, 0.18, shirt, -0.39, 1.10, 0);
+
+  // Legs — pants with shoe slabs at the bottom
+  box(0.22, 0.55, 0.30, PANTS, -0.12, 0.325, 0);
+  box(0.22, 0.55, 0.30, PANTS,  0.12, 0.325, 0);
+  box(0.24, 0.10, 0.32, SHOES, -0.12, 0.05,  0);
+  box(0.24, 0.10, 0.32, SHOES,  0.12, 0.05,  0);
+
+  // Torso
+  box(0.55, 0.60, 0.30, SHIRT, 0, 0.90, 0);
+
+  // Arms (sleeves) + skin hands
+  box(0.20, 0.50, 0.22, SHIRT,  0.375, 0.95, 0);
+  box(0.20, 0.50, 0.22, SHIRT, -0.375, 0.95, 0);
+  box(0.22, 0.12, 0.24, SKIN,   0.375, 0.64, 0);
+  box(0.22, 0.12, 0.24, SKIN,  -0.375, 0.64, 0);
+
+  // Head — sub-group so it could be tilted independently later
+  const head = new THREE.Group();
+  head.position.set(0, 1.50, 0);
+  group.add(head);
+
+  // Skin cube
+  box(0.55, 0.55, 0.55, SKIN, 0, 0, 0, head);
+
+  // Hair: cap on top, fringe across the front, sides, back
+  box(0.56, 0.10, 0.56, HAIR, 0,      0.275, 0,      head);
+  box(0.56, 0.10, 0.05, HAIR, 0,      0.20,  0.275,  head); // bangs
+  box(0.56, 0.30, 0.05, HAIR, 0,      0.10, -0.275,  head); // back
+  box(0.05, 0.30, 0.56, HAIR, -0.275, 0.10,  0,      head); // left
+  box(0.05, 0.30, 0.56, HAIR,  0.275, 0.10,  0,      head); // right
+
+  // Face features (front of head, +Z)
+  const f = 0.276;
+  box(0.10, 0.10, 0.02, EYE_W, -0.10, 0.05, f,        head);
+  box(0.10, 0.10, 0.02, EYE_W,  0.10, 0.05, f,        head);
+  box(0.05, 0.08, 0.025, EYE_P, -0.10, 0.05, f + 0.005, head);
+  box(0.05, 0.08, 0.025, EYE_P,  0.10, 0.05, f + 0.005, head);
+  box(0.20, 0.04, 0.02, MOUTH, 0,    -0.15, f,        head);
+  // Slight beard stubble shading under nose
+  box(0.10, 0.04, 0.02, HAIR,  0,    -0.05, f,        head);
+
+  group.userData.head = head;
   return group;
 }
 
@@ -74,11 +113,11 @@ function buildNamePlate(text) {
 }
 
 class RemotePlayer {
-  constructor(scene, id, name, color) {
+  constructor(scene, id, name) {
     this.id = id;
     this.name = name;
     this.scene = scene;
-    this.avatar = buildAvatar(color);
+    this.avatar = buildAvatar();
     this.nameplate = buildNamePlate(name);
     this.nameplate.position.set(0, REMOTE_NAME_HEIGHT, 0);
     this.avatar.add(this.nameplate);
@@ -185,7 +224,7 @@ export class Multiplayer {
       if (msg.id === this.myId) return;
       let rp = this.remote.get(msg.id);
       if (!rp) {
-        rp = new RemotePlayer(this.game.scene, msg.id, msg.name || msg.id.slice(-4), colorFor(msg.id));
+        rp = new RemotePlayer(this.game.scene, msg.id, msg.name || msg.id.slice(-4));
         this.remote.set(msg.id, rp);
       }
       rp.setState(msg);
@@ -249,7 +288,6 @@ export class Multiplayer {
             const c = rp.current;
             conn.send({ t: 'state', id: otherId, x: c.x, y: c.y, z: c.z, yaw: c.yaw, pitch: c.pitch, name: rp.name });
           }
-          // Also tell *us* about the new joiner (no-op for state but seeds map).
         });
         conn.on('data', (msg) => this._onMessage(conn.peer, msg));
         conn.on('close', () => {

@@ -2702,6 +2702,161 @@ class Game {
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    this.setupTouchControls();
+  }
+
+  // Touch / mobile controls. We map gestures to the same keys/mouse state
+  // updatePlayer/updateInteraction already consume — so no other code paths
+  // change.
+  setupTouchControls() {
+    // Only enable on devices whose primary pointer is coarse (i.e. real touch
+    // devices). Desktops with touchscreens have `navigator.maxTouchPoints > 0`
+    // but `(pointer: fine)`, so this avoids breaking mouse + pointer-lock on
+    // those machines.
+    const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const noHover = window.matchMedia && window.matchMedia('(hover: none)').matches;
+    const isTouch = coarse && noHover;
+    if (!isTouch) return;
+    document.body.classList.add('touch');
+
+    // Disable pointer-lock click on overlay; we control input via touch.
+    const overlay = document.getElementById('overlay');
+    if (overlay) overlay.classList.add('hidden');
+
+    // ----- Movement joystick -----
+    const stick = document.getElementById('tc-stick');
+    const knob  = document.getElementById('tc-stick-knob');
+    let stickId = null, stickCx = 0, stickCy = 0;
+    const STICK_R = 50;
+    const setMoveKeys = (dx, dy) => {
+      // dy is screen-down positive; forward (W) corresponds to dy<0.
+      const dead = 0.25;
+      this.keys['KeyW'] = dy < -dead;
+      this.keys['KeyS'] = dy >  dead;
+      this.keys['KeyA'] = dx < -dead;
+      this.keys['KeyD'] = dx >  dead;
+      // Sprint when pushed near the edge
+      const mag = Math.hypot(dx, dy);
+      this.keys['ShiftLeft'] = mag > 0.85;
+    };
+    const clearMoveKeys = () => {
+      this.keys['KeyW'] = this.keys['KeyA'] = this.keys['KeyS'] = this.keys['KeyD'] = false;
+      this.keys['ShiftLeft'] = false;
+    };
+    stick.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const t = e.changedTouches[0];
+      stickId = t.identifier;
+      const r = stick.getBoundingClientRect();
+      stickCx = r.left + r.width / 2;
+      stickCy = r.top + r.height / 2;
+      knob.style.transform = 'translate(0,0)';
+    }, { passive: false });
+    stick.addEventListener('touchmove', (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier !== stickId) continue;
+        e.preventDefault();
+        let dx = t.clientX - stickCx;
+        let dy = t.clientY - stickCy;
+        const mag = Math.hypot(dx, dy);
+        if (mag > STICK_R) { dx = dx / mag * STICK_R; dy = dy / mag * STICK_R; }
+        knob.style.transform = `translate(${dx}px, ${dy}px)`;
+        setMoveKeys(dx / STICK_R, dy / STICK_R);
+        return;
+      }
+    }, { passive: false });
+    const stickEnd = (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier !== stickId) continue;
+        stickId = null;
+        knob.style.transform = 'translate(0,0)';
+        clearMoveKeys();
+      }
+    };
+    stick.addEventListener('touchend', stickEnd);
+    stick.addEventListener('touchcancel', stickEnd);
+
+    // ----- Look pane (right half) — drag to rotate camera, tap to break -----
+    const look = document.getElementById('tc-look');
+    let lookId = null, lookLastX = 0, lookLastY = 0, lookStartT = 0, lookMoved = 0;
+    const LOOK_SENS = 0.005;
+    look.addEventListener('touchstart', (e) => {
+      if (lookId !== null) return;
+      const t = e.changedTouches[0];
+      lookId = t.identifier;
+      lookLastX = t.clientX;
+      lookLastY = t.clientY;
+      lookStartT = performance.now();
+      lookMoved = 0;
+      e.preventDefault();
+    }, { passive: false });
+    look.addEventListener('touchmove', (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier !== lookId) continue;
+        const dx = t.clientX - lookLastX;
+        const dy = t.clientY - lookLastY;
+        lookLastX = t.clientX; lookLastY = t.clientY;
+        lookMoved += Math.abs(dx) + Math.abs(dy);
+        this.player.yaw   -= dx * LOOK_SENS;
+        this.player.pitch -= dy * LOOK_SENS;
+        const lim = Math.PI / 2 - 0.001;
+        if (this.player.pitch >  lim) this.player.pitch =  lim;
+        if (this.player.pitch < -lim) this.player.pitch = -lim;
+        e.preventDefault();
+        return;
+      }
+    }, { passive: false });
+    const lookEnd = (e) => {
+      for (const t of e.changedTouches) {
+        if (t.identifier !== lookId) continue;
+        const dt = performance.now() - lookStartT;
+        // Tap (short, low movement) → quick break pulse so tapping a block destroys it.
+        if (dt < 250 && lookMoved < 8) {
+          this.mouse.left = true;
+          setTimeout(() => { this.mouse.left = false; }, 50);
+        }
+        lookId = null;
+      }
+    };
+    look.addEventListener('touchend', lookEnd);
+    look.addEventListener('touchcancel', lookEnd);
+
+    // ----- Buttons -----
+    const holdBtn = (id, set) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('touchstart', (e) => { e.preventDefault(); el.classList.add('active'); set(true);  }, { passive: false });
+      const off = (e) => { el.classList.remove('active'); set(false); };
+      el.addEventListener('touchend', off);
+      el.addEventListener('touchcancel', off);
+    };
+    holdBtn('tc-break', (v) => { this.mouse.left  = v; });
+    holdBtn('tc-place', (v) => { this.mouse.right = v; });
+    holdBtn('tc-jump',  (v) => { this.keys['Space'] = v; });
+
+    // Tap-toggle buttons
+    const tapBtn = (id, fn) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        el.classList.add('active');
+        fn();
+        setTimeout(() => el.classList.remove('active'), 120);
+      }, { passive: false });
+    };
+    tapBtn('tc-fly', () => {
+      this.player.flying = !this.player.flying;
+      this.player.velocity.y = 0;
+    });
+    tapBtn('tc-inv', () => this.toggleInventory());
+
+    // Stop touchmove on body from scrolling the page
+    document.body.addEventListener('touchmove', (e) => {
+      if (e.target.closest('#inventory-screen')) return;
+      e.preventDefault();
+    }, { passive: false });
   }
 
   updateChunks() {

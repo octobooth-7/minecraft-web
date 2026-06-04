@@ -124,6 +124,63 @@
   #mp-qr { background: #fff; padding: 6px; display: inline-block; margin-top: 4px; }
   #mp-qr img, #mp-qr canvas { display: block; }
   .mp-hidden { display: none !important; }
+
+  /* ===== Mobile touch controls ===== */
+  #touch-controls {
+    position: fixed; inset: 0; pointer-events: none; z-index: 40;
+    display: none;
+    user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+  }
+  body.touch #touch-controls { display: block; }
+  /* Hide pointer-locking overlay on touch — instead we show a tap-to-start hint inside the touch UI */
+  body.touch #overlay { display: none !important; }
+
+  .tc-btn {
+    position: absolute; pointer-events: auto;
+    background: rgba(0,0,0,0.35);
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 50%;
+    color: #fff;
+    font-family: monospace; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none; -webkit-user-select: none;
+  }
+  .tc-btn:active, .tc-btn.active {
+    background: rgba(255,255,255,0.30);
+    border-color: #fff;
+  }
+
+  #tc-stick {
+    position: absolute; left: 24px; bottom: 24px;
+    width: 130px; height: 130px;
+    background: rgba(0,0,0,0.30);
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    pointer-events: auto;
+    touch-action: none;
+  }
+  #tc-stick-knob {
+    position: absolute; left: 50%; top: 50%;
+    width: 56px; height: 56px;
+    margin-left: -28px; margin-top: -28px;
+    background: rgba(255,255,255,0.5);
+    border: 2px solid #fff; border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* Look pane: invisible but capturing right half */
+  #tc-look {
+    position: absolute; right: 0; top: 0; bottom: 0; left: 50%;
+    pointer-events: auto; touch-action: none;
+  }
+
+  #tc-jump   { right: 24px;  bottom: 120px; width: 70px; height: 70px; font-size: 22px; }
+  #tc-break  { right: 110px; bottom: 50px;  width: 64px; height: 64px; font-size: 18px; }
+  #tc-place  { right: 24px;  bottom: 50px;  width: 64px; height: 64px; font-size: 18px; }
+  #tc-fly    { right: 24px;  top: 200px;    width: 54px; height: 54px; font-size: 14px; }
+  #tc-inv    { right: 24px;  top: 130px;    width: 54px; height: 54px; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -162,6 +219,15 @@
 </div>
 <div id="drag-ghost"></div>
 <div id="tooltip"></div>
+<div id="touch-controls">
+  <div id="tc-stick"><div id="tc-stick-knob"></div></div>
+  <div id="tc-look"></div>
+  <div id="tc-jump"  class="tc-btn">⤒</div>
+  <div id="tc-break" class="tc-btn">⛏</div>
+  <div id="tc-place" class="tc-btn">▣</div>
+  <div id="tc-inv"   class="tc-btn">INV</div>
+  <div id="tc-fly"   class="tc-btn">FLY</div>
+</div>
 <div id="overlay">
   <div>
     <h1>Minecraft Web</h1>
