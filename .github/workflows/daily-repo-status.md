@@ -16,12 +16,45 @@ permissions:
   pull-requests: read
   copilot-requests: write
 
-network: defaults
+network:
+  allowed:
+    - defaults
+    - api.github.com
 
 tools:
   github:
+    mode: gh-proxy
     lockdown: false
     min-integrity: none
+  bash: ["*"]
+
+steps:
+  - name: Fetch repository activity
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    run: |
+      mkdir -p /tmp/gh-aw/data
+      REPO="${{ github.repository }}"
+
+      gh repo view "$REPO" \
+        --json name,description,stargazerCount,forkCount,openIssuesCount,pushedAt \
+        > /tmp/gh-aw/data/repo.json
+
+      gh issue list --repo "$REPO" --state all --limit 20 \
+        --json number,title,state,createdAt,closedAt,labels,author \
+        > /tmp/gh-aw/data/issues.json
+
+      gh pr list --repo "$REPO" --state all --limit 20 \
+        --json number,title,state,createdAt,mergedAt,author \
+        > /tmp/gh-aw/data/prs.json
+
+      gh release list --repo "$REPO" --limit 5 \
+        --json tagName,publishedAt,name \
+        > /tmp/gh-aw/data/releases.json
+
+      gh api "repos/$REPO/commits?per_page=10" \
+        --jq '[.[] | {sha: .sha[0:7], message: (.commit.message | split("\n")[0]), author: .commit.author.name, date: .commit.author.date}]' \
+        > /tmp/gh-aw/data/commits.json
 
 safe-outputs:
   mentions: false
@@ -34,6 +67,13 @@ safe-outputs:
 # Repo Status
 
 Create an upbeat daily status report for the repo as a GitHub issue.
+
+Pre-fetched repository data is available in `/tmp/gh-aw/data/`:
+- `repo.json` — repository metadata (name, description, stars, forks, open issues)
+- `issues.json` — recent issues (up to 20, all states)
+- `prs.json` — recent pull requests (up to 20, all states)
+- `releases.json` — recent releases (up to 5)
+- `commits.json` — recent commits (up to 10)
 
 ## What to include
 
@@ -50,6 +90,6 @@ Create an upbeat daily status report for the repo as a GitHub issue.
 
 ## Process
 
-1. Gather recent activity from the repository
-2. Study the repository, its issues and its pull requests
+1. Read the pre-fetched data from `/tmp/gh-aw/data/`
+2. Synthesize the activity into a concise status report
 3. Create a new GitHub issue with your findings and insights
