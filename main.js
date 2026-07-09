@@ -2008,9 +2008,9 @@ class Game {
     // Day/night cycle
     this.dayLength = 240;          // seconds for full day
     this.dayTime = 0.20;            // start mid-morning
-    this.skyDay   = new THREE.Color(0x87ceeb);
-    this.skyDusk  = new THREE.Color(0xf2935a);
-    this.skyNight = new THREE.Color(0x06091a);
+    this.skyDay   = new THREE.Color(0x4fc3f7);  // vivid sky blue
+    this.skyDusk  = new THREE.Color(0xff6a2f);  // deep burnt-orange sunset
+    this.skyNight = new THREE.Color(0x03071a);  // near-black deep navy
     this._tmpSky  = new THREE.Color();
     this.crackMaterial = new THREE.MeshBasicMaterial({
       map: this.crackTex,
@@ -2946,7 +2946,7 @@ class Game {
     // Detect if the player's body is intersecting any water voxel.
     const inWater = this._playerInWater();
     p.inWater = inWater;
-    const baseSpeed = (this.keys['ShiftLeft'] || this.keys['ShiftRight']) ? 7.5 : 4.5;
+    const baseSpeed = (this.keys['ShiftLeft'] || this.keys['ShiftRight']) ? 9.0 : 5.0;
     const speed = inWater ? baseSpeed * 0.55 : baseSpeed;
     const fwdX = -Math.sin(p.yaw);
     const fwdZ = -Math.cos(p.yaw);
@@ -3506,7 +3506,7 @@ class Game {
     this.scene.fog.color.copy(this._tmpSky);
 
     // Tint world material (multiplies into vertex colors)
-    this.material.color.setRGB(b, b, b * (b > 0.6 ? 1 : 1.05)); // slight blue at night
+    this.material.color.setRGB(b, b, b * (b > 0.6 ? 1 : 1.18)); // stronger blue tint at night
     if (this.crackMaterial) this.crackMaterial.color.setRGB(b, b, b);
 
     // Tint mob materials
