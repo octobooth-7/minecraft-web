@@ -15,6 +15,8 @@ tools:
       - pull_requests
 steps:
   - name: Fetch PR diff and file list
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     run: |
       mkdir -p /tmp/gh-aw/data
       gh pr view ${{ github.event.pull_request.number }} \
