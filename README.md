@@ -36,3 +36,12 @@ A single-page voxel sandbox in the browser, built with [Three.js](https://threej
 Click **Host**. A short room id is generated, a join URL is shown, and a QR code appears. Other players visit the URL (or scan the QR with their phone) and connect peer-to-peer. The world is procedurally seeded, so every client generates the same terrain — only block edits and player positions are sent over the network.
 
 Signalling uses the free public PeerJS broker; gameplay is direct P2P over WebRTC.
+
+## GitHub Agentic Workflows
+
+This repo is configured for [GitHub Agentic Workflows](https://github.com/github/gh-aw).
+
+- Repository authoring support lives in `.github/skills/`, `.github/mcp.json`, and `.github/workflows/copilot-setup-steps.yml`
+- The sample workflow at `.github/workflows/daily-repo-status.md` compiles to `.github/workflows/daily-repo-status.lock.yml`
+- After editing any `*.md` workflow file, run `gh aw compile` and commit the regenerated `.lock.yml`
+- Before running Copilot-backed workflows, configure repository auth such as `COPILOT_GITHUB_TOKEN` or an org setup that allows `copilot-requests`
