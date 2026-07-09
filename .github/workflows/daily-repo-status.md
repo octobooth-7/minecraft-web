@@ -36,8 +36,8 @@ steps:
       mkdir -p /tmp/gh-aw/data
       REPO="${{ github.repository }}"
 
-      gh repo view "$REPO" \
-        --json name,description,stargazerCount,forkCount,openIssuesCount,pushedAt \
+      gh api "repos/$REPO" \
+        --jq '{name: .name, description: .description, stargazerCount: .stargazers_count, forkCount: .forks_count, openIssuesCount: .open_issues_count, pushedAt: .pushed_at}' \
         > /tmp/gh-aw/data/repo.json
 
       gh issue list --repo "$REPO" --state all --limit 20 \
