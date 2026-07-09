@@ -568,6 +568,21 @@ function buildTower(chunk, cx, cz, baseY, height, radius, wallBlock, roofBlock) 
   chunkWrite(chunk, cx + 1, y + 3, cz, BLOCK.LEAVES);
 }
 
+function buildCrenellations(chunk, minX, minZ, maxX, maxZ, topY, block) {
+  for (let x = minX; x <= maxX; x += 2) {
+    chunkWrite(chunk, x, topY + 1, minZ, block);
+    chunkWrite(chunk, x, topY + 2, minZ, block);
+    chunkWrite(chunk, x, topY + 1, maxZ, block);
+    chunkWrite(chunk, x, topY + 2, maxZ, block);
+  }
+  for (let z = minZ; z <= maxZ; z += 2) {
+    chunkWrite(chunk, minX, topY + 1, z, block);
+    chunkWrite(chunk, minX, topY + 2, z, block);
+    chunkWrite(chunk, maxX, topY + 1, z, block);
+    chunkWrite(chunk, maxX, topY + 2, z, block);
+  }
+}
+
 // Build a castle into the chunk (may span multiple chunks).
 function buildCastle(chunk, originX, originZ) {
   const baseH = terrainHeight(originX, originZ);
@@ -649,18 +664,7 @@ function buildCastle(chunk, originX, originZ) {
     chunkWrite(chunk, maxX - 1, wallTop, z, BLOCK.PLANKS);
   }
   // Crenellations (alternating brick merlons, 2 tall)
-  for (let x = minX; x <= maxX; x += 2) {
-    chunkWrite(chunk, x, wallTop + 1, minZ, BLOCK.BRICK);
-    chunkWrite(chunk, x, wallTop + 2, minZ, BLOCK.BRICK);
-    chunkWrite(chunk, x, wallTop + 1, maxZ, BLOCK.BRICK);
-    chunkWrite(chunk, x, wallTop + 2, maxZ, BLOCK.BRICK);
-  }
-  for (let z = minZ; z <= maxZ; z += 2) {
-    chunkWrite(chunk, minX, wallTop + 1, z, BLOCK.BRICK);
-    chunkWrite(chunk, minX, wallTop + 2, z, BLOCK.BRICK);
-    chunkWrite(chunk, maxX, wallTop + 1, z, BLOCK.BRICK);
-    chunkWrite(chunk, maxX, wallTop + 2, z, BLOCK.BRICK);
-  }
+  buildCrenellations(chunk, minX, minZ, maxX, maxZ, wallTop, BLOCK.BRICK);
 
   // 4 corner towers: 5x5 base, 14 tall, brick walls, brick stepped roof + spire
   const corners = [
@@ -756,18 +760,7 @@ function buildCastle(chunk, originX, originZ) {
     chunkWrite(chunk, originX + k, wy, originZ,     BLOCK.AIR);
   }
   // Keep crenellations (2-tall merlons)
-  for (let x = originX - k; x <= originX + k; x += 2) {
-    chunkWrite(chunk, x, keepTopY + 1, originZ - k, BLOCK.BRICK);
-    chunkWrite(chunk, x, keepTopY + 2, originZ - k, BLOCK.BRICK);
-    chunkWrite(chunk, x, keepTopY + 1, originZ + k, BLOCK.BRICK);
-    chunkWrite(chunk, x, keepTopY + 2, originZ + k, BLOCK.BRICK);
-  }
-  for (let z = originZ - k; z <= originZ + k; z += 2) {
-    chunkWrite(chunk, originX - k, keepTopY + 1, z, BLOCK.BRICK);
-    chunkWrite(chunk, originX - k, keepTopY + 2, z, BLOCK.BRICK);
-    chunkWrite(chunk, originX + k, keepTopY + 1, z, BLOCK.BRICK);
-    chunkWrite(chunk, originX + k, keepTopY + 2, z, BLOCK.BRICK);
-  }
+  buildCrenellations(chunk, originX - k, originZ - k, originX + k, originZ + k, keepTopY, BLOCK.BRICK);
   // Keep central spire (tall flagpole with king's banner)
   for (let i = 0; i < 7; i++) chunkWrite(chunk, originX, keepTopY + 1 + i, originZ, BLOCK.WOOD);
   // Big leaf banner (3 tall, 2 wide)
@@ -1596,14 +1589,7 @@ class Mob {
 
   // Box-vs-world collision check for an arbitrary AABB.
   _blocked(minX, minY, minZ, maxX, maxY, maxZ) {
-    const x0 = Math.floor(minX), x1 = Math.floor(maxX);
-    const y0 = Math.floor(minY), y1 = Math.floor(maxY);
-    const z0 = Math.floor(minZ), z1 = Math.floor(maxZ);
-    for (let x = x0; x <= x1; x++)
-      for (let y = y0; y <= y1; y++)
-        for (let z = z0; z <= z1; z++)
-          if (this.world.isSolid(x, y, z)) return true;
-    return false;
+    return aabbIntersectsSolid(this.world, minX, minY, minZ, maxX, maxY, maxZ);
   }
 
   update(dt, player) {
@@ -1909,6 +1895,17 @@ class Player {
   }
 }
 
+function aabbIntersectsSolid(world, minX, minY, minZ, maxX, maxY, maxZ) {
+  const x0 = Math.floor(minX), x1 = Math.floor(maxX);
+  const y0 = Math.floor(minY), y1 = Math.floor(maxY);
+  const z0 = Math.floor(minZ), z1 = Math.floor(maxZ);
+  for (let x = x0; x <= x1; x++)
+    for (let y = y0; y <= y1; y++)
+      for (let z = z0; z <= z1; z++)
+        if (world.isSolid(x, y, z)) return true;
+  return false;
+}
+
 // AABB collision: try each axis separately. Player AABB centered at (x,z), y from foot.
 function collideAxis(world, pos, vel, axis) {
   const r = 0.3;
@@ -1920,18 +1917,7 @@ function collideAxis(world, pos, vel, axis) {
   const minY = newPos.y,     maxY = newPos.y + h;
   const minZ = newPos.z - r, maxZ = newPos.z + r;
 
-  const x0 = Math.floor(minX), x1 = Math.floor(maxX);
-  const y0 = Math.floor(minY), y1 = Math.floor(maxY);
-  const z0 = Math.floor(minZ), z1 = Math.floor(maxZ);
-
-  let hit = false;
-  for (let x = x0; x <= x1 && !hit; x++) {
-    for (let y = y0; y <= y1 && !hit; y++) {
-      for (let z = z0; z <= z1 && !hit; z++) {
-        if (world.isSolid(x, y, z)) { hit = true; break; }
-      }
-    }
-  }
+  const hit = aabbIntersectsSolid(world, minX, minY, minZ, maxX, maxY, maxZ);
   if (!hit) {
     pos[axis] = newPos[axis];
     return false;
